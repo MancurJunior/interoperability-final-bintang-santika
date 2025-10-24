@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Admin - KampusKuEvent</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="container">
+  <h1 class="theme mt-3">Admin Panel</h1>
+  <p>Gunakan token admin header <code>X-API-KEY</code> : <strong>admintoken123</strong></p>
+  <div class="row">
+    <div class="col-md-6">
+      <h4>Tambah / Edit Event</h4>
+      <input id="eid" type="hidden" />
+      <div class="mb-2"><input id="title" class="form-control" placeholder="Judul"></div>
+      <div class="mb-2"><input id="date" class="form-control" placeholder="YYYY-MM-DD"></div>
+      <div class="mb-2"><input id="location" class="form-control" placeholder="Lokasi"></div>
+      <div class="mb-2"><input id="quota" class="form-control" type="number" placeholder="Kuota"></div>
+      <div class="mb-2"><textarea id="description" class="form-control" placeholder="Deskripsi"></textarea></div>
+      <div>
+        <button class="btn btn-primary" onclick="saveEvent()">Simpan</button>
+        <button class="btn btn-secondary" onclick="resetForm()">Reset</button>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <h4>Daftar Event</h4>
+      <div id="events"></div>
+    </div>
+  </div>
+
+  <script>
+  const api = "http://127.0.0.1:8000";
+  const token = "admintoken123";
+
+  async function loadEvents(){
+    const res = await fetch(api + "/events");
+    const data = await res.json();
+    const el = document.getElementById('events');
+    el.innerHTML = '';
+    data.forEach(ev => {
+      el.innerHTML += `
+        <div class="card mb-2">
+          <div class="card-body">
+            <h5>${ev.title}</h5>
+            <p>${ev.date} — ${ev.location} | Kuota: ${ev.quota}</p>
+            <p>${ev.description || ''}</p>
+            <button class="btn btn-sm btn-outline-primary" onclick="editEvent(${ev.id})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteEvent(${ev.id})">Hapus</button>
+            <button class="btn btn-sm btn-info" onclick="viewParticipants(${ev.id})">Lihat Peserta</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  async function saveEvent(){
+    const id = document.getElementById('eid').value;
+    const payload = {
+      title: document.getElementById('title').value,
+      date: document.getElementById('date').value,
+      location: document.getElementById('location').value,
+      quota: parseInt(document.getElementById('quota').value),
+      description: document.getElementById('description').value
+    };
+    const url = api + "/events" + (id ? ("/" + id) : "");
+    const method = id ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: {"Content-Type":"application/json", "X-API-KEY": token}, body: JSON.stringify(payload) });
+    if(res.ok){ alert('Sukses'); resetForm(); loadEvents(); } else { const err = await res.json(); alert('Error: ' + (err.detail||JSON.stringify(err))); }
+  }
+
+  function resetForm(){
+    document.getElementById('eid').value='';
+    document.getElementById('title').value='';
+    document.getElementById('date').value='';
+    document.getElementById('location').value='';
+    document.getElementById('quota').value='';
+    document.getElementById('description').value='';
+  }
+
+  async function editEvent(id){
+    const res = await fetch(api + "/events");
+    const data = await res.json();
+    const ev = data.find(e=>e.id===id);
+    if(!ev) return alert('Event not found');
+    document.getElementById('eid').value = ev.id;
+    document.getElementById('title').value = ev.title;
+    document.getElementById('date').value = ev.date;
+    document.getElementById('location').value = ev.location;
+    document.getElementById('quota').value = ev.quota;
+    document.getElementById('description').value = ev.description;
+  }
+
+  async function deleteEvent(id){
+    if(!confirm('Yakin ingin menghapus event ini?')) return;
+    const res = await fetch(api + "/events/" + id, { method: "DELETE", headers: {"X-API-KEY": token} });
+    if(res.status===204){ alert('Terhapus'); loadEvents(); } else { const err = await res.json(); alert('Error: ' + (err.detail||JSON.stringify(err))); }
+  }
+
+  async function viewParticipants(eventId){
+    const res = await fetch(api + `/events/${eventId}/participants`);
+    const data = await res.json();
+    let html = '<h5>Peserta</h5>';
+    if(data.length===0) html += '<p>Tidak ada peserta.</p>';
+    data.forEach(p=>{
+      html += `<div class="card mb-1"><div class="card-body">${p.name} — ${p.email} <button class="btn btn-sm btn-danger float-end" onclick="deleteParticipant(${p.id})">Hapus</button></div></div>`;
+    });
+    const w = window.open('', '_blank', 'width=600,height=600');
+    w.document.write('<html><head><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head><body class="container"><h3>Daftar Peserta</h3>' + html + '</body></html>');
+  }
+
+  async function deleteParticipant(id){
+    if(!confirm('Hapus peserta ini?')) return;
+    const res = await fetch(api + "/participants/" + id, { method: "DELETE", headers: {"X-API-KEY": token} });
+    if(res.status===204){ alert('Peserta dihapus'); } else { const err = await res.json(); alert('Error: ' + (err.detail||JSON.stringify(err))); }
+    loadEvents();
+  }
+
+  loadEvents();
+  </script>
+</body>
+</html>
